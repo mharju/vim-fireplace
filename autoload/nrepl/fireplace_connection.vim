@@ -144,6 +144,19 @@ function! s:nrepl_process(payload) dict abort
   return combined
 endfunction
 
+function! s:nrepl_load_file(file, file_name, file_path) dict abort
+  let payload = {"op": "load-file", "file": a:file, "file-name": a:file_name, "file-path": a:file_path}
+  let response = self.process(payload)
+
+  if has_key(response, 'value')
+    let response.value = response.value[-1]
+  endif
+  if has_key(response, 'status')
+    let response.out = response.status[-1]
+  endif
+  return response
+endfunction
+
 function! s:nrepl_eval(expr, ...) dict abort
   let payload = {"op": "eval"}
   if exists('g:fireplace_unsafe') && g:fireplace_unsafe
@@ -203,6 +216,7 @@ let s:nrepl = {
       \ 'call': s:function('s:nrepl_call'),
       \ 'eval': s:function('s:nrepl_eval'),
       \ 'path': s:function('s:nrepl_path'),
+      \ 'load_file': s:function('s:nrepl_load_file'),
       \ 'process': s:function('s:nrepl_process')}
 
 if !has('python')

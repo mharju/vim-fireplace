@@ -491,11 +491,10 @@ function! s:qfhistory() abort
   return list
 endfunction
 
-function! fireplace#session_eval(expr) abort
-  let response = s:eval(a:expr, {'session': 1})
-
+function! fireplace#session_handle_response(response, expr)
+  let response = a:response
   if !empty(get(response, 'value', ''))
-    call insert(s:history, {'buffer': bufnr(''), 'code': a:expr, 'ns': fireplace#ns(), 'response': response})
+   call insert(s:history, {'buffer': bufnr(''), 'code': a:expr, 'ns': fireplace#ns(), 'response': response})
   endif
   if len(s:history) > &history
     call remove(s:history, &history, -1)
@@ -521,6 +520,19 @@ function! fireplace#session_eval(expr) abort
     let err = 'fireplace.vim: Something went wrong: '.string(response)
   endif
   throw err
+endfunction
+
+function! fireplace#session_require(ns)
+  " TODO add support for ns param. Now loads in the current file
+  let client = s:client()
+  let file = join(getline(1,line('$')), "\n")
+  let name = expand('%:t')
+  let path = expand('%:h')
+  return fireplace#session_handle_response(client.connection.load_file(file, name, path), file)
+endfunction
+
+function! fireplace#session_eval(expr) abort
+  return fireplace#session_handle_response(s:eval(a:expr, {'session': 1}), expr)
 endfunction
 
 function! fireplace#eval(expr) abort
@@ -846,14 +858,20 @@ augroup END
 " :Require {{{1
 
 function! s:Require(bang, ns)
-  let cmd = ('(clojure.core/require '.s:qsym(a:ns ==# '' ? fireplace#ns() : a:ns).' :reload'.(a:bang ? '-all' : '').')')
-  echo cmd
-  try
-    call fireplace#session_eval(cmd)
+  if a:bang
+    let cmd = ('(clojure.core/require '.s:qsym(a:ns ==# '' ? fireplace#ns() : a:ns).' :reload'.(a:bang ? '-all' : '').')')
+    echo cmd
+    try
+      call fireplace#session_eval(cmd)
+      return ''
+    catch /^Clojure:.*/
+      return ''
+    endtry
+  else
+    " TODO add support for other namespaces
+    call fireplace#session_require(a:ns)
     return ''
-  catch /^Clojure:.*/
-    return ''
-  endtry
+  endif
 endfunction
 
 function! s:setup_require()
